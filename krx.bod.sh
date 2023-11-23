@@ -33,7 +33,7 @@ c_minute=$(date +%M)
 
 if [ ${c_hour}  -ge ${not_after} ] || [ ${c_hour}  -lt ${not_before} ]
 then
-	echo echo $(date +%r)": Not in running time. Exitting..."
+	echo $(date +%r)": Not in running time. Exitting..."
 	sleep 1
 	exit
 fi
@@ -92,6 +92,20 @@ echo $(date +%r)": - SFTP local path: ${sftp_folder}"
 echo $(date +%r)": - Script location: ${script_path}"
 echo ""
 
+
+
+### CHECK SYSTEM SERVICE
+# Check that mdds service is running or not.
+#
+echo $(date +%r)": Checking MDDS service...."
+check=$(curl -X GET --connect-timeout 20 "http://localhost:${api_port}/${api_uri}/status" -H "accept: */*")
+if ! echo ${check} | grep "\"code\":\"OK\""
+then
+	echo $(date +%r)": MDDS service does not response. Exitting...."
+	sleep 1
+	exit
+fi
+echo ""
 
 ### REMOVE CURRENT CRON JOB
 # Get current time: hour and minute for cron
