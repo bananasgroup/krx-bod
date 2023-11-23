@@ -60,30 +60,33 @@ else
 	db_date=$(date '+%Y/%m/%d')
 	param=""
 fi
+
 hostname=$(hostname)
+
+if echo ${hostname} | grep "hnx"
+then
+    echo $(date +%r)": Working server is HNX..."
+    sftp_total_file_required=${sftp_total_file_required_hnx}
+    prefix=hnx
+elif echo ${hostname} | grep "hsx"
+then
+	echo $(date +%r)": Working server is HSX..."
+    sftp_total_file_required=${sftp_total_file_required_hsx}
+    prefix=hsx
+else
+    echo $(date +%r)": Cannot run this script on other server. Exitting...."
+	sleep 2
+    exit
+fi
 
 api_port=5003
 api_uri=mdds
 api_action=bod${param}
 
-sftp_folder=/opt/apps/sftp/${date}
+sftp_folder=/opt/apps/sftp/${prefix}/${date}
 sftp_total_file_required_hnx=9
 sftp_total_file_required_hsx=10
 script_path=/opt/apps/script
-
-if echo ${hostname} | grep "hnx"
-then
-        echo $(date +%r)": Working server is HNX..."
-        sftp_total_file_required=${sftp_total_file_required_hnx}
-elif echo ${hostname} | grep "hsx"
-then
-	echo $(date +%r)": Working server is HSX..."
-        sftp_total_file_required=${sftp_total_file_required_hsx}
-else
-        echo $(date +%r)": Cannot run this script on other server. Exitting...."
-	sleep 2
-        exit
-fi
 
 echo $(date +%r)": - BOD date: ${date}"
 echo $(date +%r)": - API URL: http://localhost:${api_port}/${api_uri}/${api_action}"
