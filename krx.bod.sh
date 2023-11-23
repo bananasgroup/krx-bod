@@ -22,6 +22,20 @@ echo "================ KRX BOD =================="
 echo "==========================================="
 echo ""
 
+# Create logs folder if not exist
+if [ ! -d ${script_path}/logs ]
+then
+	mkdir ${script_path}/logs/ -p
+fi
+# check if system date format is 24 hours
+if ! grep -q "LC_TIME=\"C.UTF-8\"" /etc/default/locale
+then
+	echo $(date +%r)": System date format is not set to 24 hours. We recommend to use 24 hours format for this script working perfectly."
+	echo $(date +%r)": Modify LC_TIME...."
+	echo "LC_TIME=\"C.UTF-8\"" | tee -a /etc/default/locale
+fi
+echo ""
+
 ### SET SAFE TIME
 # Set time that script will be safe to run. Normal after download sftp and before next start time.
 #
@@ -113,14 +127,6 @@ echo ""
 ### REMOVE CURRENT CRON JOB
 # Get current time: hour and minute for cron
 # Round minute for crontab. We just create and check crontab at every 30 minutes.
-# check if system date format is 24 hours
-if ! grep -q "LC_TIME=\"C.UTF-8\"" /etc/default/locale
-then
-	echo $(date +%r)": System date format is not set to 24 hours. We recommend to use 24 hours format for this script working perfectly."
-	echo $(date +%r)": Modify LC_TIME...."
-	echo "LC_TIME=\"C.UTF-8\"" | tee -a /etc/default/locale
-fi
-echo ""
 
 if [ ${c_minute} -ge 30 ]
 then
@@ -222,11 +228,7 @@ then
 		fi
 		echo "#auto_crontab_re-bod" | tee -a /etc/crontab
 		echo "${c_minute_round_fu} ${c_hour_new} * * 1-6 root sh ${script_path}/krx.bod.sh | tee -a ${script_path}/logs/auto_bod_crontab.log" | tee -a /etc/crontab
-		# Create log folder if not exist
-		if [ ! -d ${script_path}/logs ]
-		then
-			mkdir ${script_path}/logs/ -p
-		fi
+
 	fi
 else
 	date=$(curl -X GET --connect-timeout 20 "http://localhost:${api_port}/${api_uri}/date" -H "accept: */*")
