@@ -45,7 +45,7 @@ not_after=8
 c_hour=$(date +%H)
 c_minute=$(date +%M)
 
-if [ ${c_hour}  -ge ${not_after} ] || [ ${c_hour}  -lt ${not_before} ]
+if [ ${c_hour}  -ge ${not_after} ] && [ ${c_hour}  -lt ${not_before} ]
 then
 	echo $(date +%r)": Not in running time. Exitting..."
 	sleep 1
