@@ -2,7 +2,7 @@
 2. If all conditions (check time, check sftp) are failed:  
         - Auto create cron job and rerun after every 30 minutes. These cron job will be remove if running complete.  
         - Script will run from start (00h30 as we specify) to 8h00 next day. After that, this will stop create cron job at last run.
-        - Some backup of crontab file also created in /etc (/etc/crontab.xxxx.bk), so you can remove all of this backup file with: rm /etc/crontab.*.bk
+        - Some backup of crontab file also created in /etc (/etc/crontab.xxxx.bk), so you can remove all of this backup file with: rm /etc/crontab.*.bk  
         - Script will not run after $not_after and before $not_before. These value you must config following also.
 4. Requires:    
 	- Tested on Ubuntu 20    
