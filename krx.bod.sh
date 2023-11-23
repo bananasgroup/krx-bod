@@ -5,6 +5,7 @@
 #Requires:
 #	- Tested on Ubuntu 20
 #	- Script must run as root
+#   - Create logs folder at: ${script_path}/logs/
 #
 #Adding directly to /etc/crontab file (change the path if needed):
 # 30 00 * * * root sh /opt/apps/script/krx.bod.sh | tee -a /opt/apps/script/logs/krx.bod.log
@@ -23,10 +24,11 @@ echo "==========================================="
 echo ""
 
 # Create logs folder if not exist
-if [ ! -d ${script_path}/logs ]
-then
-	mkdir ${script_path}/logs/ -p
-fi
+#if [ ! -d /opt/apps/script/logs ]
+#then
+#	mkdir /opt/apps/script/logs/ -p
+#fi
+
 # check if system date format is 24 hours
 if ! grep -q "LC_TIME=\"C.UTF-8\"" /etc/default/locale
 then
@@ -64,17 +66,21 @@ fi
 # sftp_folder is woking directory path of sftp, normaly is /opt/apps/sftp/Ymd
 # script_path is location of this script (not include / at the end)
 
-if [ ${c_hour} -ge 18 ]&& [ ${c_hour} -le 23 ]
+if [ ${c_hour} -ge 18 ] && [ ${c_hour} -le 23 ] #  18-23
 then
 	date=$(date -d '+1 day' '+%Y%m%d')
 	db_date=$(date -d '+1 day' '+%Y/%m/%d')
 	param="?date=${date}"
+	sftp_date=$(date '+%Y%m%d')
 else
 	date=$(date '+%Y%m%d')
 	db_date=$(date '+%Y/%m/%d')
 	param=""
+	sftp_date=$(date -d '-1 day' '+%Y%m%d')
 fi
 
+sftp_total_file_required_hnx=9
+sftp_total_file_required_hsx=10
 hostname=$(hostname)
 
 if echo ${hostname} | grep "hnx"
@@ -95,11 +101,9 @@ fi
 
 api_port=5003
 api_uri=mdds
-api_action=bod${param}
+api_action=date${param}
 
-sftp_folder=/opt/apps/sftp/${prefix}/${date}
-sftp_total_file_required_hnx=9
-sftp_total_file_required_hsx=10
+sftp_folder=/opt/apps/sftp/${prefix}/${sftp_date}
 script_path=/opt/apps/script
 
 echo $(date +%r)": - BOD date: ${date}"
@@ -188,6 +192,30 @@ then
 			echo ""
 			echo $(date +%r)": MDDS DB date is old date. Stopping MDDS for BOD...."
 			curl -X GET --connect-timeout 20 "http://localhost:${api_port}/${api_uri}/stop" -H "accept: */*"
+		fi
+	fi
+fi
+
+if [ ${success} = 1 ]
+then
+	echo ""
+	echo $(date +%r)": Checking for DB date..."
+	check_date=$(curl -X GET --connect-timeout 20 "http://localhost:${api_port}/${api_uri}/date" -H "accept: */*")
+	if echo ${check_date} | grep "Database date: ${db_date}"
+	then
+		echo ""
+		echo $(date +%r)": MDDS is BOD already. Nothing to do. Exitting...."
+		exit
+	else
+		echo ""
+		echo $(date +%r)": Checking MDDS status...."
+		status=$(curl -X GET --connect-timeout 20 "http://localhost:${api_port}/${api_uri}/status" -H "accept: */*")
+
+		if echo ${status} | grep "\"data\":{\"status\":\"RUNNING\""
+		then
+			echo ""
+			echo $(date +%r)": MDDS is in RUNNING state. Stopping MDDS for BOD..."
+			curl -X GET --connect-timeout 20 "http://localhost:${api_port}/${api_uri}/stop" -H "accept: */*"			
 		fi
 	fi
 fi
