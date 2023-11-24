@@ -17,6 +17,10 @@
 #	api_uri
 #	api_action
 # You can search and change all value with tag ###Changeable
+# Success code: 
+# 	1  - success to do next task
+# 	0  - failed -> create crontab to try again after 30 minutes
+# 	-1 - exit
 #
 
 OUTPUT=""
@@ -35,16 +39,18 @@ then
 fi
 OUTPUT=${OUTPUT}"%0A"
 
+
 ### SET SAFE TIME
 # Set time that script will be safe to run. Normal after download sftp and before next start time.
 #
 
-not_before=22 						###Changeable
+not_before=21 						###Changeable
 not_after=8 						###Changeable
 logs_path=/opt/apps/script/logs 	###Changeable
 
 c_hour=$(date +%H)
 c_minute=$(date +%M)
+c_dow=$(date +%u)
 success=1
 
 if [ ${c_hour}  -ge ${not_after} ] && [ ${c_hour}  -lt ${not_before} ]
@@ -52,6 +58,17 @@ then
 	OUTPUT=${OUTPUT}$(date +%T)": Not in running time...%0A"
 	success=-1
 fi
+
+### SET WEEKEND
+# Script will not run if weekend (Day of week are 6-Sat and 7-Sun).
+#
+if [ ${c_dow} -gt 5 ]
+then
+	OUTPUT=${OUTPUT}$(date +%T)": Weekend: $(date +%a)...%0A"
+	OUTPUT=${OUTPUT}$(date +%T)": Not run in weekend...%0A"
+	success=-1
+fi
+
 
 ### SET PARAM
 # If script run from 18h00 - 23h59 -> BOD date is next date, also add date to api param when call BOD.
@@ -65,12 +82,22 @@ fi
 # sftp_folder is woking directory path of sftp, normaly is /opt/apps/sftp/Ymd
 # script_path is location of this script (not include / at the end)
 
-if [ ${c_hour} -ge 18 ] && [ ${c_hour} -le 23 ] #  18-23 		###Changeable
+# If running from 18h to 23h59, BOD date is next day (or next 3 days if current date is Friday).
+# If running after 00h00, BOD date is current date.
+if [ ${c_hour} -ge 18 ] && [ ${c_hour} -le 23 ]
 then
-	date=$(date -d '+1 day' '+%Y%m%d')
-	db_date=$(date -d '+1 day' '+%Y/%m/%d')
-	param="?date=${date}"
-	sftp_date=$(date '+%Y%m%d')
+	if [ ${c_dow} -eq 5 ]
+	then
+		date=$(date -d '+3 day' '+%Y%m%d')
+		db_date=$(date -d '+3 day' '+%Y/%m/%d')
+		param="?date=${date}"
+		sftp_date=$(date '+%Y%m%d')
+	else
+		date=$(date -d '+1 day' '+%Y%m%d')
+		db_date=$(date -d '+1 day' '+%Y/%m/%d')
+		param="?date=${date}"
+		sftp_date=$(date '+%Y%m%d')
+	fi
 else
 	date=$(date '+%Y%m%d')
 	db_date=$(date '+%Y/%m/%d')
@@ -87,12 +114,12 @@ then
 
 	if echo ${hostname} | grep "hnx" 	###Changeable
 	then
-	    OUTPUT=${OUTPUT}$(date +%T)": Working server is HNX..."
+	    OUTPUT=${OUTPUT}$(date +%T)": Working server is HNX...%0A"
 	    sftp_total_file_required=${sftp_total_file_required_hnx}
 	    prefix=hnx
 	elif echo ${hostname} | grep "hsx" 	###Changeable
 	then
-		OUTPUT=${OUTPUT}$(date +%T)": Working server is HSX..."
+		OUTPUT=${OUTPUT}$(date +%T)": Working server is HSX...%0A"
 	    sftp_total_file_required=${sftp_total_file_required_hsx}
 	    prefix=hsx
 	else
@@ -103,14 +130,15 @@ then
 
 	api_port=5003 				###Changeable
 	api_uri=mdds 				###Changeable
-	api_action=date${param} 	###Changeable
+	api_action=bod${param} 	###Changeable
 
 	sftp_folder=/opt/apps/sftp/${prefix}/${sftp_date} 		###Changeable
 	script_path=/opt/apps/script 							###Changeable
 
 	OUTPUT=${OUTPUT}$(date +%T)": - BOD date: ${date}%0A"
+	OUTPUT=${OUTPUT}$(date +%T)": - DoW: ${c_dow} - $(date +%a)%0A"
 	OUTPUT=${OUTPUT}$(date +%T)": - API URL: http://localhost:${api_port}/${api_uri}/${api_action}%0A"
-	OUTPUT=${OUTPUT}$(date +%T)": - Number of file expected: ${sftp_total_file_required}%0A"
+	OUTPUT=${OUTPUT}$(date +%T)": - Number of SFTP file expected: ${sftp_total_file_required}%0A"
 	OUTPUT=${OUTPUT}$(date +%T)": - SFTP local path: ${sftp_folder}%0A"
 	OUTPUT=${OUTPUT}$(date +%T)": - Script location: ${script_path}%0A"
 	OUTPUT=${OUTPUT}$(date +%T)": - Logs location: ${logs_path}%0A"
@@ -126,10 +154,15 @@ if [ ${success} = 1 ]
 then
 	OUTPUT=${OUTPUT}$(date +%T)": Checking MDDS service....%0A"
 	check=$(curl -X GET --connect-timeout 20 "http://localhost:${api_port}/${api_uri}/status" -H "accept: */*")
+	OUTPUT=${OUTPUT}${check}"%0A"
+
 	if ! echo ${check} | grep "\"code\":\"OK\""
 	then
 		OUTPUT=${OUTPUT}$(date +%T)": MDDS service does not response...%0A"
+		OUTPUT=${OUTPUT}$(date +%T)": Checking MDDS service ----x> FAILED%0A"
 		success=-1
+	else
+		OUTPUT=${OUTPUT}$(date +%T)": Checking MDDS service ----> PASS%0A"
 	fi
 fi
 OUTPUT=${OUTPUT}"%0A"
@@ -148,15 +181,14 @@ then
 		c_minute_round_fu=30
 	fi
 
-	if grep -q "auto_crontab_reconnect" /etc/crontab
+	if grep -q "auto_bod_crontab" /etc/crontab
 	then
 		#remove auto genarate crontab. we will re-gen later if download failed.
 		#backup crontab file also
 		OUTPUT=${OUTPUT}"===========================================%0A"
 	    cp /etc/crontab /etc/crontab.${c_hour}${c_minute}.bk
-		OUTPUT=${OUTPUT}$(date +%T)": Attempt to run auto_crontab: ${c_hour}:${c_minute_round_pass}"
+		OUTPUT=${OUTPUT}$(date +%T)": Attempt to run auto_crontab: ${c_hour}:${c_minute_round_pass}%0A"
 		awk '!/auto_bod_crontab/' /etc/crontab > ~/auto_cron_temp && mv ~/auto_cron_temp /etc/crontab
-		awk '!/auto_crontab_re-bod/' /etc/crontab > ~/auto_cron_temp && mv ~/auto_cron_temp /etc/crontab
 	fi
 fi
 
@@ -166,13 +198,16 @@ fi
 # If you dont want to redownload, just add comment out these lines by adding # at every first line.
 if [ ${success} = 1 ]
 then
+	OUTPUT=${OUTPUT}$(date +%T)": Checking SFTP files....%0A"
 	numfile=$(ls ${sftp_folder} | wc -l)
-	OUTPUT=${OUTPUT}$(date +%T)": Number of file after download: ${numfile}"
+	OUTPUT=${OUTPUT}$(date +%T)": Number of SFTP file after download: ${numfile}%0A"
 	if [ ${numfile} -lt ${sftp_total_file_required} ]
 	then
 		OUTPUT=${OUTPUT}$(date +%T)": Missing file in SFTP folder. Try to BOD later...%0A"
+		OUTPUT=${OUTPUT}$(date +%T)": Checking SFTP files ----x> FAILED%0A"
 		success=0
 	else
+		OUTPUT=${OUTPUT}$(date +%T)": Checking SFTP files ----> PASS%0A"
 		success=1
 	fi
 fi
@@ -188,6 +223,8 @@ then
 	OUTPUT=${OUTPUT}"%0A"
 	OUTPUT=${OUTPUT}$(date +%T)": Checking for DB date...%0A"
 	check_date=$(curl -X GET --connect-timeout 20 "http://localhost:${api_port}/${api_uri}/date" -H "accept: */*")
+	OUTPUT=${OUTPUT}${check_date}"%0A"
+
 	if echo ${check_date} | grep "Database date: ${db_date}"
 	then
 		OUTPUT=${OUTPUT}"%0A"
@@ -195,14 +232,16 @@ then
 		success=-1
 	else
 		OUTPUT=${OUTPUT}"%0A"
+		OUTPUT=${OUTPUT}$(date +%T)": DB date is valid to BOD....%0A"
 		OUTPUT=${OUTPUT}$(date +%T)": Checking MDDS status....%0A"
 		status=$(curl -X GET --connect-timeout 20 "http://localhost:${api_port}/${api_uri}/status" -H "accept: */*")
+		OUTPUT=${OUTPUT}${status}"%0A"
 
 		if echo ${status} | grep "\"data\":{\"status\":\"RUNNING\""
 		then
 			OUTPUT=${OUTPUT}"%0A"
 			OUTPUT=${OUTPUT}$(date +%T)": MDDS is in RUNNING state. Stopping MDDS for BOD..."
-			curl -X GET --connect-timeout 20 "http://localhost:${api_port}/${api_uri}/stop" -H "accept: */*"			
+			OUTPUT=${OUTPUT}$(curl -X GET --connect-timeout 20 "http://localhost:${api_port}/${api_uri}/stop" -H "accept: */*")	
 		fi
 	fi
 fi
@@ -213,9 +252,13 @@ then
 	OUTPUT=${OUTPUT}"%0A"
 	OUTPUT=${OUTPUT}$(date +%T)": Start BOD...%0A"
     response=$(curl -X GET --connect-timeout 20 "http://localhost:${api_port}/${api_uri}/${api_action}" -H "accept: */*")
+    OUTPUT=${OUTPUT}${response}"%0A"
+
     if ! echo  ${response} | grep "\"code\":\"OK\""
     then
-            success=0
+    	OUTPUT=${OUTPUT}"%0A"
+    	OUTPUT=${OUTPUT}"BOD failed... Try to BOD in next 30 minutes....%0A"
+        success=0
     fi
 fi
 
@@ -241,13 +284,14 @@ then
 		else
 			c_hour_new=${c_hour}
 		fi
-		OUTPUT=${OUTPUT}"#auto_crontab_re-bod" | tee -a /etc/crontab
-		OUTPUT=${OUTPUT}"${c_minute_round_fu} ${c_hour_new} * * 1-6 root sh ${script_path}/krx.bod.sh #auto_bod_crontab.log" | tee -a /etc/crontab
+		echo "${c_minute_round_fu} ${c_hour_new} * * 1-6 root sh ${script_path}/krx.bod.sh #auto_bod_crontab.log" | tee -a /etc/crontab
 
 	fi
 elif  [ ${success} = 1 ]
 then
 	date=$(curl -X GET --connect-timeout 20 "http://localhost:${api_port}/${api_uri}/date" -H "accept: */*")
+	OUTPUT=${OUTPUT}${date}"%0A"
+	OUTPUT=${OUTPUT}"%0A"
     OUTPUT=${OUTPUT}$(date +%T)": BOD complete.....%0A"
 	echo ${date}
 	OUTPUT=${OUTPUT}"%0A"
@@ -261,8 +305,12 @@ fi
 OUTPUT=${OUTPUT}"%0A"
 OUTPUT=${OUTPUT}"%0A"
 
-#======================
+
+### OUTPUT SETTING
+# Defaul is output to log file
+# Optional is send message to telegram or email.
 # Create logs folder if not exist
+#
 if [ ! -d ${logs_path} ]
 then
 	mkdir ${logs_path} -p
@@ -270,7 +318,9 @@ fi
 
 echo ${OUTPUT} | sed -r 's/%0A/\n/g' | tee -a ${logs_path}/krx.bod.log
 
-CHAT_TOKEN="1780537418:AAH-2vpNHEjX4M7DvNTHhvMj1jzaw5pzb9w"
-CHAT_ID="-463661337"
+# Telegram
+CHAT_TOKEN=""
+CHAT_ID=""
 curl -s -X POST https://api.telegram.org/bot$CHAT_TOKEN/sendMessage -d chat_id=$CHAT_ID -d text="$OUTPUT" > /dev/null
 
+# Email
