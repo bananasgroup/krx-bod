@@ -123,7 +123,7 @@ then
 	    sftp_total_file_required=${sftp_total_file_required_hsx}
 	    prefix=hsx
 	else
-	    OUTPUT=${OUTPUT}$(date +%T)": Cannot run this script on other server. Exitting....%0A"
+	    OUTPUT=${OUTPUT}$(date +%T)": Cannot run this script on other server.%0A"
 		success=-1
 		prefix=_
 	fi
@@ -159,10 +159,10 @@ then
 	if ! echo ${check} | grep "\"code\":\"OK\""
 	then
 		OUTPUT=${OUTPUT}$(date +%T)": MDDS service does not response...%0A"
-		OUTPUT=${OUTPUT}$(date +%T)": Checking MDDS service ----x> FAILED%0A"
+		OUTPUT=${OUTPUT}$(date +%T)": Checking MDDS service: FAILED%0A"
 		success=-1
 	else
-		OUTPUT=${OUTPUT}$(date +%T)": Checking MDDS service ----> PASS%0A"
+		OUTPUT=${OUTPUT}$(date +%T)": Checking MDDS service: PASS%0A"
 	fi
 fi
 OUTPUT=${OUTPUT}"%0A"
@@ -204,10 +204,10 @@ then
 	if [ ${numfile} -lt ${sftp_total_file_required} ]
 	then
 		OUTPUT=${OUTPUT}$(date +%T)": Missing file in SFTP folder. Try to BOD later...%0A"
-		OUTPUT=${OUTPUT}$(date +%T)": Checking SFTP files ----x> FAILED%0A"
+		OUTPUT=${OUTPUT}$(date +%T)": Checking SFTP files: FAILED%0A"
 		success=0
 	else
-		OUTPUT=${OUTPUT}$(date +%T)": Checking SFTP files ----> PASS%0A"
+		OUTPUT=${OUTPUT}$(date +%T)": Checking SFTP files: PASS%0A"
 		success=1
 	fi
 fi
@@ -228,7 +228,7 @@ then
 	if echo ${check_date} | grep "Database date: ${db_date}"
 	then
 		OUTPUT=${OUTPUT}"%0A"
-		OUTPUT=${OUTPUT}$(date +%T)": MDDS is BOD already. Nothing to do. Exitting....%0A"
+		OUTPUT=${OUTPUT}$(date +%T)": MDDS is BOD already. Nothing to do.%0A"
 		success=-1
 	else
 		OUTPUT=${OUTPUT}"%0A"
