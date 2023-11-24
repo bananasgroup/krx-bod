@@ -6,9 +6,11 @@
 #	- Tested on Ubuntu 20
 #	- Script must run as root
 #   - Create logs folder at: ${script_path}/logs/
+#	- Allow firewall rule from MDDS server to api.telegram.org port 443 if want to send alert to telegram api.
 #
 # Adding directly to /etc/crontab file (change the path if needed):
-# 30 00 * * * root sh /opt/apps/script/krx.bod.sh | tee -a /opt/apps/script/logs/krx.bod.log
+# 00 23 * * * root sh /opt/apps/script/krx.bod.sh | tee -a /opt/apps/script/logs/krx.bod.log
+#
 # Specific these values in SET PARAM block:
 #	sftp_total_file_required
 #	sftp_folder
@@ -16,8 +18,10 @@
 #	api_port
 #	api_uri
 #	api_action
+#
 # You can search and change all value with tag ###Changeable
-# Success code: 
+#
+# Success code:
 # 	1  - success to do next task
 # 	0  - failed -> create crontab to try again after 30 minutes
 # 	-1 - exit
@@ -41,9 +45,9 @@ OUTPUT=${OUTPUT}"%0A"
 
 
 ### SET SAFE TIME
-# Set time that script will be safe to run. Normal after download sftp and before next start time.
+# Set protect time that script cannot run. Script should be run after download sftp and before next start time.
+# Default is from 8h00 to 20h59
 #
-
 not_before=21 						###Changeable
 not_after=8 						###Changeable
 logs_path=/opt/apps/script/logs 	###Changeable
@@ -61,6 +65,7 @@ fi
 
 ### SET WEEKEND
 # Script will not run if weekend (Day of week are 6-Sat and 7-Sun).
+# It will BOD to next Monday if run at Friday night.
 #
 if [ ${c_dow} -gt 5 ]
 then
@@ -71,19 +76,21 @@ fi
 
 
 ### SET PARAM
-# If script run from 18h00 - 23h59 -> BOD date is next date, also add date to api param when call BOD.
+# If script run from 18h00 - 23h59 -> BOD date is next date, also add ?date=Ymd to api param when call BOD.
 # We check working server base on server hostname. So hostname must content "hnx" or "hsx" to continue this script.
-# Or you can declare other string to differentiate HNX and HSX server, depend on your hostname.
+# Or you can specify other string to differentiate HNX and HSX server, depend on your hostname.
 #
 # api_port is mdds api port. Default is 5003
 # api_uri is valid path of uri. Default is mdds
 # api_action is action of this script. Default is bod (bod?date=Ymd denpend on running time)
 # sftp_total_file_required is number of file that you downloaded everyday. script will check number of file after download and compare to this value.
-# sftp_folder is woking directory path of sftp, normaly is /opt/apps/sftp/Ymd
+# sftp_folder is woking directory path of sftp, normaly is /opt/apps/sftp/[hnx|hsx]/Ymd
 # script_path is location of this script (not include / at the end)
 
-# If running from 18h to 23h59, BOD date is next day (or next 3 days if current date is Friday).
-# If running after 00h00, BOD date is current date.
+# If running from 18h to 23h59, BOD date is next day (or next 3 days if current date is Friday) and SFTP date folder is current date. Param ?date=Ymd must be added.
+# If running after 00h00, BOD date is current date and SFTP date folder is yesterday.
+# Declare db_date type Y/m/d for checking DB date in BOD block
+#
 if [ ${c_hour} -ge 18 ] && [ ${c_hour} -le 23 ]
 then
 	if [ ${c_dow} -eq 5 ]
@@ -130,10 +137,10 @@ then
 
 	api_port=5003 				###Changeable
 	api_uri=mdds 				###Changeable
-	api_action=bod${param} 	###Changeable
+	api_action=bod${param} 		###Changeable
 
 	sftp_folder=/opt/apps/sftp/${prefix}/${sftp_date} 		###Changeable
-	script_path=/opt/apps/script 							###Changeable
+	script_path=/opt/apps/script 		###Changeable
 
 	OUTPUT=${OUTPUT}$(date +%T)": - BOD date: ${date}%0A"
 	OUTPUT=${OUTPUT}$(date +%T)": - DoW: ${c_dow} - $(date +%a)%0A"
@@ -145,7 +152,17 @@ then
 	OUTPUT=${OUTPUT}"%0A"
 fi
 
-
+### ========== ###
+### ========== ###
+# Uncomment following 2 lines, and manual run this script (not in protect time you set above) to print all param to stdout and re-check if needed.
+# This action does not make any effect to MDDS date.
+# Manual run by this command: sudo sh krx.bod.sh
+#
+#echo ${OUTPUT} | sed -r 's/%0A/\n/g' 	#uncomment this
+#exit 	#uncomment this
+#
+### ========== ###
+### ========== ###
 
 ### CHECK SYSTEM SERVICE
 # Check that mdds service is running or not.
@@ -170,6 +187,7 @@ OUTPUT=${OUTPUT}"%0A"
 ### REMOVE CURRENT CRON JOB
 # Get current time: hour and minute for cron
 # Round minute for crontab. We just create and check crontab at every 30 minutes.
+#
 if [ ${success} = 1 ]
 then
 	if [ ${c_minute} -ge 30 ]
@@ -183,8 +201,8 @@ then
 
 	if grep -q "auto_bod_crontab" /etc/crontab
 	then
-		#remove auto genarate crontab. we will re-gen later if download failed.
-		#backup crontab file also
+		#Remove auto genarate crontab. We will re-gen later if download failed.
+		#Backup crontab file also
 		OUTPUT=${OUTPUT}"===========================================%0A"
 	    cp /etc/crontab /etc/crontab.${c_hour}${c_minute}.bk
 		OUTPUT=${OUTPUT}$(date +%T)": Attempt to run auto_crontab: ${c_hour}:${c_minute_round_pass}%0A"
@@ -196,6 +214,7 @@ fi
 # If files are not exist, add crontab to redownload later.
 # We also check if total files after download are less then ${total_files_download}
 # If you dont want to redownload, just add comment out these lines by adding # at every first line.
+#
 if [ ${success} = 1 ]
 then
 	OUTPUT=${OUTPUT}$(date +%T)": Checking SFTP files....%0A"
@@ -214,10 +233,10 @@ fi
 
 
 ### CHECK STATUS
-# Only BOD if MDDS is STOP. If it's running, check current DB date. 
+# Only BOD if MDDS is STOP. If it's running, check current DB date.
 # If current DB date is new date, do nothing and exit script.
 # If current DB date is old date, STOP MDDS.
-
+#
 if [ ${success} = 1 ]
 then
 	OUTPUT=${OUTPUT}"%0A"
@@ -241,7 +260,7 @@ then
 		then
 			OUTPUT=${OUTPUT}"%0A"
 			OUTPUT=${OUTPUT}$(date +%T)": MDDS is in RUNNING state. Stopping MDDS for BOD..."
-			OUTPUT=${OUTPUT}$(curl -X GET --connect-timeout 20 "http://localhost:${api_port}/${api_uri}/stop" -H "accept: */*")	
+			OUTPUT=${OUTPUT}$(curl -X GET --connect-timeout 20 "http://localhost:${api_port}/${api_uri}/stop" -H "accept: */*")
 		fi
 	fi
 fi
@@ -265,20 +284,19 @@ fi
 ### GENERATE NEW CRONTAB
 # Create new crontab if all above checks are failed
 # Last cron job will be created at 7h30 AM everyday. After that, this loop will be stopped even task is success or not.
-
+#
 if [ ${success} = 0 ]
 then
 	if [ ${c_hour} -ge 7 ] && [ ${c_hour} -lt 18 ]
 	then
 		OUTPUT=${OUTPUT}$(date +%T)": Cannot BOD MDDS. Check log file for more detail. Exitting...%0A"
-		sleep 1
 	else
 		OUTPUT=${OUTPUT}$(date +%T)": Adding new crontab....%0A"
 		if [ ${c_minute_round_pass} -eq 30 ]
 		then
 			c_hour_new=$((${c_hour}+1))
    			if [ ${c_hour_new} -eq 24 ]
-      			then
+      		then
 				c_hour_new=00
   			fi
 		else
