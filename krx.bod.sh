@@ -5,7 +5,6 @@
 # Requires:
 #	- Tested on Ubuntu 20
 #	- Script must run as root
-#   - Create logs folder at: ${script_path}/logs/
 #	- Allow firewall rule from MDDS server to api.telegram.org port 443 if want to send alert to telegram api.
 #
 # Adding directly to /etc/crontab file (change the path if needed):
