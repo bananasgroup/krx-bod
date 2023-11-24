@@ -19,7 +19,8 @@
 #	api_uri
 #	api_action
 #
-# You can search and change all value with tag ###Changeable
+# Print param to recheck by uncomment lines in RE-CHECK PARAM block
+# Search and change all value with tag ###Changeable
 #
 # Success code:
 # 	1  - success to do next task
@@ -153,7 +154,7 @@ then
 fi
 
 ### ========== ###
-### ========== ###
+### RE-CHECK PARAM
 # Uncomment following 2 lines, and manual run this script (not in protect time you set above) to print all param to stdout and re-check if needed.
 # This action does not make any effect to MDDS date.
 # Manual run by this command: sudo sh krx.bod.sh
@@ -161,7 +162,6 @@ fi
 #echo ${OUTPUT} | sed -r 's/%0A/\n/g' 	#uncomment this
 #exit 	#uncomment this
 #
-### ========== ###
 ### ========== ###
 
 ### CHECK SYSTEM SERVICE
