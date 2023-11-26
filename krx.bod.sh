@@ -5,6 +5,7 @@
 # Requires:
 #	- Tested on Ubuntu 20
 #	- Script must run as root
+#   - Create logs folder at: ${script_path}/logs/
 #	- Allow firewall rule from MDDS server to api.telegram.org port 443 if want to send alert to telegram api.
 #
 # Adding directly to /etc/crontab file (change the path if needed):
@@ -18,13 +19,14 @@
 #	api_uri
 #	api_action
 #
-# Print param to recheck by uncomment lines in RE-CHECK PARAM block
-# Search and change all value with tag ###Changeable
+# You can search and change all value with tag ###Changeable
 #
 # Success code:
-# 	1  - success to do next task
+# 	1  - success and do next task
 # 	0  - failed -> create crontab to try again after 30 minutes
 # 	-1 - exit
+#
+# Comment out Email or Telegram block at the end for sending output via email or telegram api.
 #
 
 OUTPUT=""
@@ -69,31 +71,31 @@ fi
 #
 if [ ${c_dow} -gt 5 ]
 then
-	OUTPUT=${OUTPUT}$(date +%T)": Weekend: $(date +%a)...%0A"
-	OUTPUT=${OUTPUT}$(date +%T)": Not run in weekend...%0A"
-	success=-1
+	if [ ${c_dow} -eq 6 ] && grep -q "auto_bod_crontab" /etc/crontab
+	then
+		success=1
+	else
+		OUTPUT=${OUTPUT}$(date +%T)": Weekend: $(date +%a)...%0A"
+		OUTPUT=${OUTPUT}$(date +%T)": Not run in weekend...%0A"
+		success=-1
+	fi
 fi
 
-
-### SET PARAM
+### SET DATE
 # If script run from 18h00 - 23h59 -> BOD date is next date, also add ?date=Ymd to api param when call BOD.
-# We check working server base on server hostname. So hostname must content "hnx" or "hsx" to continue this script.
-# Or you can specify other string to differentiate HNX and HSX server, depend on your hostname.
-#
-# api_port is mdds api port. Default is 5003
-# api_uri is valid path of uri. Default is mdds
-# api_action is action of this script. Default is bod (bod?date=Ymd denpend on running time)
-# sftp_total_file_required is number of file that you downloaded everyday. script will check number of file after download and compare to this value.
-# sftp_folder is woking directory path of sftp, normaly is /opt/apps/sftp/[hnx|hsx]/Ymd
-# script_path is location of this script (not include / at the end)
-
 # If running from 18h to 23h59, BOD date is next day (or next 3 days if current date is Friday) and SFTP date folder is current date. Param ?date=Ymd must be added.
 # If running after 00h00, BOD date is current date and SFTP date folder is yesterday.
 # Declare db_date type Y/m/d for checking DB date in BOD block
 #
 if [ ${c_hour} -ge 18 ] && [ ${c_hour} -le 23 ]
 then
-	if [ ${c_dow} -eq 5 ]
+	if [ ${c_dow} -eq 6 ] # in case script failed from friday and re-run til saturday
+	then
+		date=$(date -d '+2 day' '+%Y%m%d')
+		db_date=$(date -d '+2 day' '+%Y/%m/%d')
+		param="?date=${date}"
+		sftp_date=$(date -d '-1 day' '+%Y%m%d')
+	elif [ ${c_dow} -eq 5 ] # if run at friday, bod date is next 3 days (Monday).
 	then
 		date=$(date -d '+3 day' '+%Y%m%d')
 		db_date=$(date -d '+3 day' '+%Y/%m/%d')
@@ -109,12 +111,34 @@ else
 	date=$(date '+%Y%m%d')
 	db_date=$(date '+%Y/%m/%d')
 	param=""
-	sftp_date=$(date -d '-1 day' '+%Y%m%d')
+	if [ ${c_dow} -eq 1 ] # if running on Monday, sftp date is last 3 days (Friday)
+	then
+		sftp_date=$(date -d '-3 day' '+%Y%m%d')
+	else
+		sftp_date=$(date -d '-1 day' '+%Y%m%d')
+	fi
 fi
 
 
+### SET PARAM
+# 
+# We check working server base on server hostname. So hostname must content "hnx" or "hsx" to continue this script.
+# Or you can specify other string to differentiate HNX and HSX server, depend on your hostname.
+#
+# api_port is mdds api port. Default is 5003
+# api_uri is valid path of uri. Default is mdds
+# api_action is action of this script. Default is bod (bod?date=Ymd denpend on running time)
+# sftp_total_file_required is number of file that you downloaded everyday. script will check number of file after download and compare to this value.
+# sftp_folder is woking directory path of sftp, normaly is /opt/apps/sftp/[hnx|hsx]/Ymd
+# script_path is location of this script (not include / at the end)
+#
 if [ ${success} = 1 ]
 then
+
+	api_port=5003 				###Changeable
+	api_uri=mdds 				###Changeable
+	api_action=bod${param} 		###Changeable
+
 	sftp_total_file_required_hnx=9 		###Changeable
 	sftp_total_file_required_hsx=10 	###Changeable
 	hostname=$(hostname)
@@ -130,18 +154,15 @@ then
 	    sftp_total_file_required=${sftp_total_file_required_hsx}
 	    prefix=hsx
 	else
-	    OUTPUT=${OUTPUT}$(date +%T)": Cannot run this script on other server.%0A"
+	    OUTPUT=${OUTPUT}$(date +%T)": Cannot run this script on this server: ${hostname} .%0A"
 		success=-1
 		prefix=_
 	fi
 
-	api_port=5003 				###Changeable
-	api_uri=mdds 				###Changeable
-	api_action=bod${param} 		###Changeable
-
 	sftp_folder=/opt/apps/sftp/${prefix}/${sftp_date} 		###Changeable
 	script_path=/opt/apps/script 		###Changeable
 
+	OUTPUT=${OUTPUT}"%0A"
 	OUTPUT=${OUTPUT}$(date +%T)": - BOD date: ${date}%0A"
 	OUTPUT=${OUTPUT}$(date +%T)": - DoW: ${c_dow} - $(date +%a)%0A"
 	OUTPUT=${OUTPUT}$(date +%T)": - API URL: http://localhost:${api_port}/${api_uri}/${api_action}%0A"
@@ -153,7 +174,7 @@ then
 fi
 
 ### ========== ###
-### RE-CHECK PARAM
+### ========== ###
 # Uncomment following 2 lines, and manual run this script (not in protect time you set above) to print all param to stdout and re-check if needed.
 # This action does not make any effect to MDDS date.
 # Manual run by this command: sudo sh krx.bod.sh
@@ -161,6 +182,7 @@ fi
 #echo ${OUTPUT} | sed -r 's/%0A/\n/g' 	#uncomment this
 #exit 	#uncomment this
 #
+### ========== ###
 ### ========== ###
 
 ### CHECK SYSTEM SERVICE
@@ -324,20 +346,62 @@ OUTPUT=${OUTPUT}"%0A"
 
 
 ### OUTPUT SETTING
+#
+# Telegram
+# Uncomment these lines for sending all output to Telegram
+#
+echo $(date +%T)": Send Telegram notification...."
+
+CHAT_TOKEN="1780537418:AAH-2vpNHEjX4M7DvNTHhvMj1jzaw5pzb9w"
+CHAT_ID="-463661337"
+curl -s -X POST https://api.telegram.org/bot$CHAT_TOKEN/sendMessage -d chat_id=$CHAT_ID -d text="$OUTPUT" > /dev/null
+
+# Email
+# 
+# Uncomment these lines for sending all output via Email
+# We use muttutil for sendding email
+# Install by: apt update -y && apt install -y mutt
+# Or download at: http://www.mutt.org/download.html
+#
+# Config Mutt by add these line to /etc/Muttrc:
+# set smtp_url = "smtp[s]://mail@mail.com:password@mail_server:port"
+# set from='mail@mail.com'
+# set realname='KRX Notification'
+#
+# Test send mail by: echo "test" | mutt -s "Subject" -- recipients@mail.com 
+# Multiple recipients seprate by comma: a@mail.com,b@mail.com
+#
+echo $(date +%T)": Send email notification...."
+
+mailto=it@dag.vn
+subject="[KRX] BOD job notification"
+
+checkmutt=$(mutt -version > /dev/null)
+if echo ${checkmutt} | grep "Command 'mutt' not found"
+then
+	OUTPUT=${OUTPUT}"%0A"
+	OUTPUT=${OUTPUT}$(date +%T)": Mutt Util is not installed on your server. Cannot send email....%0A"
+	OUTPUT=${OUTPUT}"%0A"
+else
+	echo ${OUTPUT} | sed -r 's/%0A/\n/g' | mutt -s "${subject}" -- ${mailto}
+fi
+
+
+## Write log file
 # Defaul is output to log file
 # Optional is send message to telegram or email.
 # Create logs folder if not exist
 #
 if [ ! -d ${logs_path} ]
 then
+	OUTPUT=${OUTPUT}"%0A"
+	OUTPUT=${OUTPUT}$(date +%T)": Logs folder is not exist. Create logs folder....%0A"
 	mkdir ${logs_path} -p
 fi
 
 echo ${OUTPUT} | sed -r 's/%0A/\n/g' | tee -a ${logs_path}/krx.bod.log
 
-# Telegram
-CHAT_TOKEN=""
-CHAT_ID=""
-curl -s -X POST https://api.telegram.org/bot$CHAT_TOKEN/sendMessage -d chat_id=$CHAT_ID -d text="$OUTPUT" > /dev/null
 
-# Email
+
+
+
