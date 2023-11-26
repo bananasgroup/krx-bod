@@ -9,7 +9,7 @@
 #	- Allow firewall rule from MDDS server to api.telegram.org port 443 if want to send alert to telegram api.
 #
 # Adding directly to /etc/crontab file (change the path if needed):
-# 00 23 * * * root sh /opt/apps/script/krx.bod.sh | tee -a /opt/apps/script/logs/krx.bod.log
+# 00 23 * * * root sh /opt/apps/script/krx.bod.sh
 #
 # Specific these values in SET PARAM block:
 #	sftp_total_file_required
