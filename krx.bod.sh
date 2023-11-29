@@ -9,7 +9,7 @@
 #	- Allow firewall rule from MDDS server to api.telegram.org port 443 if want to send alert to telegram api.
 #
 # Adding directly to /etc/crontab file (change the path if needed):
-# 00 23 * * * root sh /opt/apps/script/krx.bod.sh
+# 00 23 * * * root sh /opt/apps/script/krx.bod.sh >> /opt/apps/script/logs/krx.bod.cron.log
 #
 # Specific these values in SET PARAM block:
 #	sftp_total_file_required
@@ -327,7 +327,7 @@ then
 		else
 			c_hour_new=${c_hour}
 		fi
-		crontab="${c_minute_round_fu} ${c_hour_new} * * 1-6 root sh ${script_path}/krx.bod.sh #auto_bod_crontab.log"
+		crontab="${c_minute_round_fu} ${c_hour_new} * * 1-6 root sh ${script_path}/krx.bod.sh #auto_bod_crontab"
 		echo ${crontab} | tee -a /etc/crontab
 		OUTPUT=${OUTPUT}${crontab}"%0A"
 	fi
@@ -353,17 +353,16 @@ OUTPUT=${OUTPUT}"%0A"
 ### OUTPUT SETTING
 #
 # Telegram
-# Uncomment these lines for sending all output to Telegram
+# Uncomment these following lines for sending all output to Telegram
 #
-echo $(date +%T)": Send Telegram notification...."
+#echo $(date +%T)": Send Telegram notification...."
 
-CHAT_TOKEN="1780537418:AAH-2vpNHEjX4M7DvNTHhvMj1jzaw5pzb9w"
-CHAT_ID="-463661337"
-curl -s -X POST https://api.telegram.org/bot$CHAT_TOKEN/sendMessage -d chat_id=$CHAT_ID -d text="$OUTPUT" > /dev/null
+#CHAT_TOKEN=""
+#CHAT_ID=""
+#curl -s -X POST https://api.telegram.org/bot$CHAT_TOKEN/sendMessage -d chat_id=$CHAT_ID -d text="$OUTPUT" > /dev/null
 
 # Email
 # 
-# Uncomment these lines for sending all output via Email
 # We use muttutil for sendding email
 # Install by: apt update -y && apt install -y mutt
 # Or download at: http://www.mutt.org/download.html
@@ -374,22 +373,24 @@ curl -s -X POST https://api.telegram.org/bot$CHAT_TOKEN/sendMessage -d chat_id=$
 # set realname='KRX Notification'
 #
 # Test send mail by: echo "test" | mutt -s "Subject" -- recipients@mail.com 
-# Multiple recipients seprate by comma: a@mail.com,b@mail.com
+# Send multiple recipients edit: mailto=a@mail.com,b@mail.com
 #
-echo $(date +%T)": Send email notification...."
+# Uncomment these following lines for sending all output via Email
+#
+#echo $(date +%T)": Send email notification...."
 
-mailto=it@dag.vn
-subject="[KRX] BOD job notification"
+#mailto=mail@mail.com
+#subject="[KRX] BOD job notification"
 
-checkmutt=$(mutt -version > /dev/null)
-if echo ${checkmutt} | grep "Command 'mutt' not found"
-then
-	OUTPUT=${OUTPUT}"%0A"
-	OUTPUT=${OUTPUT}$(date +%T)": Mutt Util is not installed on your server. Cannot send email....%0A"
-	OUTPUT=${OUTPUT}"%0A"
-else
-	echo ${OUTPUT} | sed -r 's/%0A/\n/g' | mutt -s "${subject}" -- ${mailto}
-fi
+#checkmutt=$(mutt -version > /dev/null)
+#if echo ${checkmutt} | grep "Command 'mutt' not found"
+#then
+#	OUTPUT=${OUTPUT}"%0A"
+#	OUTPUT=${OUTPUT}$(date +%T)": Mutt Util is not installed on your server. Cannot send email....%0A"
+#	OUTPUT=${OUTPUT}"%0A"
+#else
+#	echo ${OUTPUT} | sed -r 's/%0A/\n/g' | mutt -s "${subject}" -- ${mailto}
+#fi
 
 
 ## Write log file
