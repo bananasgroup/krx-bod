@@ -194,7 +194,7 @@ then
 	check=$(curl -X GET --connect-timeout 20 "http://localhost:${api_port}/${api_uri}/status" -H "accept: */*")
 	OUTPUT=${OUTPUT}${check}"%0A"
 
-	if ! echo ${check} | grep "\"code\":\"OK\""
+	if ! echo ${check} | grep -o "\"code\":\"OK\""
 	then
 		OUTPUT=${OUTPUT}$(date +%T)": MDDS service does not response...%0A"
 		OUTPUT=${OUTPUT}$(date +%T)": Checking MDDS service: FAILED%0A"
@@ -271,17 +271,19 @@ then
 		OUTPUT=${OUTPUT}$(date +%T)": MDDS is BOD already. Nothing to do.%0A"
 		success=-1
 	else
-		OUTPUT=${OUTPUT}"%0A"
 		OUTPUT=${OUTPUT}$(date +%T)": DB date is valid to BOD....%0A"
+		OUTPUT=${OUTPUT}"%0A"
 		OUTPUT=${OUTPUT}$(date +%T)": Checking MDDS status....%0A"
 		status=$(curl -X GET --connect-timeout 20 "http://localhost:${api_port}/${api_uri}/status" -H "accept: */*")
 		OUTPUT=${OUTPUT}${status}"%0A"
 
-		if echo ${status} | grep "\"data\":{\"status\":\"RUNNING\""
+		if echo ${status} | grep -o "\"data\":{\"status\":\"RUNNING\""
 		then
 			OUTPUT=${OUTPUT}"%0A"
-			OUTPUT=${OUTPUT}$(date +%T)": MDDS is in RUNNING state. Stopping MDDS for BOD..."
+			OUTPUT=${OUTPUT}$(date +%T)": MDDS is in RUNNING state. Stopping MDDS for BOD...%0A"
 			OUTPUT=${OUTPUT}$(curl -X GET --connect-timeout 20 "http://localhost:${api_port}/${api_uri}/stop" -H "accept: */*")
+		else
+			OUTPUT=${OUTPUT}$(date +%T)": MDDS state is STOP.%0A"
 		fi
 	fi
 fi
@@ -294,10 +296,12 @@ then
     response=$(curl -X GET --connect-timeout 20 "http://localhost:${api_port}/${api_uri}/${api_action}" -H "accept: */*")
     OUTPUT=${OUTPUT}${response}"%0A"
 
-    if ! echo  ${response} | grep "\"code\":\"OK\""
+    # Check DB date after BOD
+    dateafter=$(curl -X GET --connect-timeout 20 "http://localhost:${api_port}/${api_uri}/date" -H "accept: */*")
+    if ! echo ${dateafter} | grep "Database date: ${db_date}" ||  ! echo  ${response} | grep "\"code\":\"OK\""
     then
     	OUTPUT=${OUTPUT}"%0A"
-    	OUTPUT=${OUTPUT}"BOD failed... Try to BOD in next 30 minutes....%0A"
+    	OUTPUT=${OUTPUT}$(date +%T)": BOD failed... Try to BOD in next 30 minutes....%0A"
         success=0
     fi
 fi
@@ -323,8 +327,9 @@ then
 		else
 			c_hour_new=${c_hour}
 		fi
-		echo "${c_minute_round_fu} ${c_hour_new} * * 1-6 root sh ${script_path}/krx.bod.sh #auto_bod_crontab.log" | tee -a /etc/crontab
-
+		crontab="${c_minute_round_fu} ${c_hour_new} * * 1-6 root sh ${script_path}/krx.bod.sh #auto_bod_crontab.log"
+		echo ${crontab} | tee -a /etc/crontab
+		OUTPUT=${OUTPUT}${crontab}"%0A"
 	fi
 elif  [ ${success} = 1 ]
 then
@@ -350,17 +355,18 @@ OUTPUT=${OUTPUT}"%0A"
 # Telegram
 # Uncomment these lines for sending all output to Telegram
 #
-#echo $(date +%T)": Send Telegram notification...."
+echo $(date +%T)": Send Telegram notification...."
 
-#CHAT_TOKEN=""
-#CHAT_ID=""
-#curl -s -X POST https://api.telegram.org/bot$CHAT_TOKEN/sendMessage -d chat_id=$CHAT_ID -d text="$OUTPUT" > /dev/null
+CHAT_TOKEN="1780537418:AAH-2vpNHEjX4M7DvNTHhvMj1jzaw5pzb9w"
+CHAT_ID="-463661337"
+curl -s -X POST https://api.telegram.org/bot$CHAT_TOKEN/sendMessage -d chat_id=$CHAT_ID -d text="$OUTPUT" > /dev/null
 
 # Email
 # 
+# Uncomment these lines for sending all output via Email
 # We use muttutil for sendding email
 # Install by: apt update -y && apt install -y mutt
-# Or download and manual install at: http://www.mutt.org/download.html
+# Or download at: http://www.mutt.org/download.html
 #
 # Config Mutt by add these line to /etc/Muttrc:
 # set smtp_url = "smtp[s]://mail@mail.com:password@mail_server:port"
@@ -370,22 +376,20 @@ OUTPUT=${OUTPUT}"%0A"
 # Test send mail by: echo "test" | mutt -s "Subject" -- recipients@mail.com 
 # Multiple recipients seprate by comma: a@mail.com,b@mail.com
 #
-# Uncomment these lines for sending all output via Email
-#
-#echo $(date +%T)": Send email notification...."
+echo $(date +%T)": Send email notification...."
 
-#mailto=
-#subject="[KRX] BOD job notification"
+mailto=it@dag.vn
+subject="[KRX] BOD job notification"
 
-#checkmutt=$(mutt -version > /dev/null)
-#if echo ${checkmutt} | grep "Command 'mutt' not found"
-#then
-#	OUTPUT=${OUTPUT}"%0A"
-#	OUTPUT=${OUTPUT}$(date +%T)": Mutt Util is not installed on your server. Cannot send email....%0A"
-#	OUTPUT=${OUTPUT}"%0A"
-#else
-#	echo ${OUTPUT} | sed -r 's/%0A/\n/g' | mutt -s "${subject}" -- ${mailto}
-#fi
+checkmutt=$(mutt -version > /dev/null)
+if echo ${checkmutt} | grep "Command 'mutt' not found"
+then
+	OUTPUT=${OUTPUT}"%0A"
+	OUTPUT=${OUTPUT}$(date +%T)": Mutt Util is not installed on your server. Cannot send email....%0A"
+	OUTPUT=${OUTPUT}"%0A"
+else
+	echo ${OUTPUT} | sed -r 's/%0A/\n/g' | mutt -s "${subject}" -- ${mailto}
+fi
 
 
 ## Write log file
