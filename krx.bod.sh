@@ -239,17 +239,24 @@ fi
 if [ ${success} = 1 ]
 then
 	OUTPUT=${OUTPUT}$(date +%T)": Checking SFTP files....%0A"
-	numfile=$(ls ${sftp_folder} | wc -l)
-	OUTPUT=${OUTPUT}$(date +%T)": Number of SFTP file after download: ${numfile}%0A"
-	if [ ${numfile} -lt ${sftp_total_file_required} ]
-	then
-		OUTPUT=${OUTPUT}$(date +%T)": Missing file in SFTP folder. Try to BOD later...%0A"
-		OUTPUT=${OUTPUT}$(date +%T)": Checking SFTP files: FAILED%0A"
-		success=0
-	else
-		OUTPUT=${OUTPUT}$(date +%T)": Checking SFTP files: PASS%0A"
-		success=1
-	fi
+ 	if [ ! -d ${sftp_folder} ]
+        then
+                OUTPUT=${OUTPUT}$(date +%T)": SFTP folder is not exist.%0A"
+                OUTPUT=${OUTPUT}$(date +%T)": Checking SFTP files: FAILED%0A"
+                success=0
+        else
+		numfile=$(ls ${sftp_folder} | wc -l)
+		OUTPUT=${OUTPUT}$(date +%T)": Number of SFTP file after download: ${numfile}%0A"
+		if [ ${numfile} -lt ${sftp_total_file_required} ]
+		then
+			OUTPUT=${OUTPUT}$(date +%T)": Missing file in SFTP folder. Try to BOD later...%0A"
+			OUTPUT=${OUTPUT}$(date +%T)": Checking SFTP files: FAILED%0A"
+			success=0
+		else
+			OUTPUT=${OUTPUT}$(date +%T)": Checking SFTP files: PASS%0A"
+			success=1
+		fi
+  	fi
 fi
 
 
