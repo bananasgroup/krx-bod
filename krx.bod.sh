@@ -111,7 +111,13 @@ else
 	date=$(date '+%Y%m%d')
 	db_date=$(date '+%Y/%m/%d')
 	param=""
-	if [ ${c_dow} -eq 1 ] # if running on Monday, sftp date is last 3 days (Friday)
+ 	if [ ${c_dow} -eq 6 ] # Saturday: in case script failed from Friday and re-run til Saturday
+	then
+		date=$(date -d '+2 day' '+%Y%m%d')
+		db_date=$(date -d '+2 day' '+%Y/%m/%d')
+		param="?date=${date}"
+		sftp_date=$(date -d '-1 day' '+%Y%m%d')
+	elif [ ${c_dow} -eq 1 ] # if running on Monday, sftp date is last 3 days (Friday)
 	then
 		sftp_date=$(date -d '-3 day' '+%Y%m%d')
 	else
